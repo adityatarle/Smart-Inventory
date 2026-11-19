@@ -2,59 +2,132 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreWarehouseRequest;
+use App\Http\Requests\UpdateWarehouseRequest;
 use App\Models\Warehouse;
+use App\Services\WarehouseService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class WarehouseController extends Controller
 {
-    public function index()
+    public function __construct(private readonly WarehouseService $warehouses)
     {
-        $warehouses = Warehouse::query()->withCount('stocks')->latest()->paginate(10);
+    }
 
-        return view('warehouses.index', compact('warehouses'));
+    public function index(Request $request)
+    {
+        abort_unless($this->canView(), 403);
+
+        $warehouses = Warehouse::query()
+            ->withCount('stocks')
+            ->withSum('stocks as total_qty', 'quantity')
+            ->search($request->get('search'))
+            ->active($request->get('status'))
+            ->latest()
+            ->paginate(12)
+            ->withQueryString();
+
+        $stats = [
+            'total' => Warehouse::count(),
+            'active' => Warehouse::where('is_active', true)->count(),
+            'inactive' => Warehouse::where('is_active', false)->count(),
+            'units' => (int) \App\Models\WarehouseStock::sum('quantity'),
+        ];
+
+        return view('warehouses.index', compact('warehouses', 'stats'));
     }
 
     public function create()
     {
-        return view('warehouses.create');
+        abort_unless($this->canManage(), 403);
+
+        return view('warehouses.create', [
+            'suggestedCode' => $this->warehouses->suggestCode(),
+        ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreWarehouseRequest $request)
     {
-        $data = $this->validated($request);
-        Warehouse::create($data);
+        $warehouse = $this->warehouses->create($request->validated());
 
-        return redirect()->route('warehouses.index')->with('success', 'Warehouse created.');
+        return redirect()->route('warehouses.show', $warehouse)->with('success', 'Warehouse created.');
+    }
+
+    public function show(Warehouse $warehouse)
+    {
+        abort_unless($this->canView(), 403);
+
+        $warehouse->loadCount('stocks')
+            ->loadSum('stocks as total_qty', 'quantity');
+
+        $stocks = $warehouse->stocks()
+            ->with('product')
+            ->orderByDesc('quantity')
+            ->paginate(10, ['*'], 'stocks_page');
+
+        $movements = $warehouse->movements()
+            ->with(['product', 'user'])
+            ->latest()
+            ->take(10)
+            ->get();
+
+        return view('warehouses.show', [
+            'warehouse' => $warehouse,
+            'stocks' => $stocks,
+            'movements' => $movements,
+            'blockers' => $this->warehouses->deletionBlockers($warehouse),
+        ]);
     }
 
     public function edit(Warehouse $warehouse)
     {
+        abort_unless($this->canManage(), 403);
+
         return view('warehouses.edit', compact('warehouse'));
     }
 
-    public function update(Request $request, Warehouse $warehouse)
+    public function update(UpdateWarehouseRequest $request, Warehouse $warehouse)
     {
-        $warehouse->update($this->validated($request, $warehouse));
+        $this->warehouses->update($warehouse, $request->validated());
 
-        return redirect()->route('warehouses.index')->with('success', 'Warehouse updated.');
+        return redirect()->route('warehouses.show', $warehouse)->with('success', 'Warehouse updated.');
     }
 
     public function destroy(Warehouse $warehouse)
     {
-        $warehouse->delete();
+        abort_unless(
+            auth()->user()->hasPermission('warehouses.delete')
+            || auth()->user()->hasPermission('warehouses.manage')
+            || auth()->user()->canManageInventory(),
+            403
+        );
+
+        try {
+            $this->warehouses->delete($warehouse);
+        } catch (ValidationException $e) {
+            return back()->withErrors($e->errors());
+        }
 
         return redirect()->route('warehouses.index')->with('success', 'Warehouse deleted.');
     }
 
-    private function validated(Request $request, ?Warehouse $warehouse = null): array
+    private function canView(): bool
     {
-        return $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:50', 'unique:warehouses,code,'.($warehouse?->id ?? 'NULL')],
-            'address' => ['nullable', 'string', 'max:255'],
-            'city' => ['nullable', 'string', 'max:120'],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'is_active' => ['sometimes', 'boolean'],
-        ]) + ['is_active' => $request->boolean('is_active')];
+        $user = auth()->user();
+
+        return $user->hasPermission('warehouses.view')
+            || $user->hasPermission('warehouses.manage')
+            || $user->canManageInventory();
+    }
+
+    private function canManage(): bool
+    {
+        $user = auth()->user();
+
+        return $user->hasPermission('warehouses.create')
+            || $user->hasPermission('warehouses.update')
+            || $user->hasPermission('warehouses.manage')
+            || $user->canManageInventory();
     }
 }

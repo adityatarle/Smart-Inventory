@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -13,23 +14,14 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    public const ROLE_ADMIN = 'admin';
-    public const ROLE_MANAGER = 'manager';
-    public const ROLE_STAFF = 'staff';
-    public const ROLE_CUSTOMER = 'customer';
-
-    public const ROLES = [
-        self::ROLE_ADMIN,
-        self::ROLE_MANAGER,
-        self::ROLE_STAFF,
-        self::ROLE_CUSTOMER,
-    ];
-
     protected $fillable = [
         'name',
         'email',
+        'phone',
+        'avatar',
         'password',
         'role',
+        'is_active',
     ];
 
     protected $hidden = [
@@ -42,59 +34,131 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
         ];
     }
 
-    public function salesOrders(): HasMany
+    public function roles(): BelongsToMany
     {
-        return $this->hasMany(SalesOrder::class, 'customer_id');
+        return $this->belongsToMany(Role::class);
+    }
+
+    public function appNotifications(): HasMany
+    {
+        return $this->hasMany(AppNotification::class);
+    }
+
+    public function activityLogs(): HasMany
+    {
+        return $this->hasMany(ActivityLog::class);
+    }
+
+    public function primaryRole(): ?Role
+    {
+        return $this->roles->first();
+    }
+
+    public function primaryRoleSlug(): string
+    {
+        return $this->primaryRole()?->slug
+            ?? $this->role
+            ?? 'viewer';
+    }
+
+    public function primaryRoleName(): string
+    {
+        return $this->primaryRole()?->name
+            ?? ucfirst(str_replace('_', ' ', $this->primaryRoleSlug()));
     }
 
     public function hasRole(string|array $roles): bool
     {
         $roles = (array) $roles;
+        $slugs = $this->roles->pluck('slug')->all();
 
-        return in_array($this->role, $roles, true);
+        if ($slugs === [] && $this->role) {
+            $slugs[] = $this->role;
+        }
+
+        return count(array_intersect($slugs, $roles)) > 0;
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        if ($this->hasRole(['super_admin'])) {
+            return true;
+        }
+
+        $module = explode('.', $permission)[0] ?? null;
+
+        foreach ($this->roles as $role) {
+            $slugs = $role->permissions->pluck('slug');
+
+            if ($slugs->contains($permission)) {
+                return true;
+            }
+
+            // `{module}.manage` grants all actions for that module
+            if ($module && $slugs->contains("{$module}.manage")) {
+                return true;
+            }
+        }
+
+        // Legacy fallback while migrating from enum role
+        return match ($this->role) {
+            'admin' => true,
+            'manager' => in_array($permission, [
+                'dashboard.view', 'products.view', 'categories.view', 'warehouses.view',
+                'inventory.view', 'purchase_orders.view', 'sales_orders.view', 'customers.view',
+                'suppliers.view', 'reports.view', 'notifications.view', 'settings.view',
+            ], true) || str_ends_with($permission, '.view') || str_ends_with($permission, '.manage'),
+            'staff', 'storekeeper' => in_array($permission, [
+                'dashboard.view', 'products.view', 'inventory.view', 'warehouses.view', 'sales_orders.view',
+                'notifications.view',
+            ], true),
+            default => $permission === 'dashboard.view',
+        };
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->hasRole(['super_admin']);
     }
 
     public function isAdmin(): bool
     {
-        return $this->role === self::ROLE_ADMIN;
-    }
-
-    public function isManager(): bool
-    {
-        return $this->role === self::ROLE_MANAGER;
-    }
-
-    public function isStaff(): bool
-    {
-        return $this->role === self::ROLE_STAFF;
-    }
-
-    public function isCustomer(): bool
-    {
-        return $this->role === self::ROLE_CUSTOMER;
+        return $this->hasRole(['super_admin', 'admin']) || $this->role === 'admin';
     }
 
     public function canManageInventory(): bool
     {
-        return $this->hasRole([self::ROLE_ADMIN, self::ROLE_MANAGER]);
+        return $this->hasPermission('warehouses.manage') || $this->hasRole(['super_admin', 'admin', 'manager']);
     }
 
     public function canOperateOrders(): bool
     {
-        return $this->hasRole([self::ROLE_ADMIN, self::ROLE_MANAGER, self::ROLE_STAFF]);
+        return $this->hasPermission('sales_orders.view')
+            || $this->hasRole(['super_admin', 'admin', 'manager', 'storekeeper', 'sales_manager', 'purchase_manager'])
+            || in_array($this->role, ['admin', 'manager', 'staff'], true);
     }
 
-    public function dashboardRoute(): string
+    public function isCustomer(): bool
     {
-        return match ($this->role) {
-            self::ROLE_ADMIN => 'dashboard',
-            self::ROLE_MANAGER => 'dashboard',
-            self::ROLE_STAFF => 'dashboard',
-            self::ROLE_CUSTOMER => 'dashboard',
-            default => 'dashboard',
-        };
+        return $this->role === 'customer' && ! $this->roles()->exists();
+    }
+
+    public function isManager(): bool
+    {
+        return $this->hasRole(['manager']) || $this->role === 'manager';
+    }
+
+    public function isStaff(): bool
+    {
+        return $this->hasRole(['storekeeper']) || $this->role === 'staff';
+    }
+
+    public function unreadNotificationsCount(): int
+    {
+        return $this->appNotifications()->whereNull('read_at')->count();
     }
 }

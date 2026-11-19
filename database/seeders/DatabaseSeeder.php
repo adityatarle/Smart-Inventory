@@ -22,26 +22,22 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $users = [
-            ['name' => 'System Admin', 'email' => 'admin@smart.test', 'role' => User::ROLE_ADMIN],
-            ['name' => 'Warehouse Manager', 'email' => 'manager@smart.test', 'role' => User::ROLE_MANAGER],
-            ['name' => 'Floor Staff', 'email' => 'staff@smart.test', 'role' => User::ROLE_STAFF],
-            ['name' => 'Demo Customer', 'email' => 'customer@smart.test', 'role' => User::ROLE_CUSTOMER],
-        ];
+        $this->call(RolePermissionSeeder::class);
 
-        foreach ($users as $user) {
-            User::updateOrCreate(
-                ['email' => $user['email']],
-                [
-                    'name' => $user['name'],
-                    'role' => $user['role'],
-                    'password' => Hash::make('password'),
-                ]
-            );
-        }
+        User::updateOrCreate(
+            ['email' => 'customer@smart.test'],
+            [
+                'name' => 'Demo Customer',
+                'role' => 'customer',
+                'password' => Hash::make('password'),
+                'is_active' => true,
+            ]
+        );
 
-        $admin = User::where('email', 'admin@smart.test')->first();
-        $staff = User::where('email', 'staff@smart.test')->first();
+        $admin = User::where('email', 'admin@smart.test')->first()
+            ?? User::where('email', 'admin@smartstock.test')->first();
+        $staff = User::where('email', 'staff@smart.test')->first()
+            ?? User::where('email', 'storekeeper@smartstock.test')->first();
         $customerUser = User::where('email', 'customer@smart.test')->first();
 
         $main = Warehouse::updateOrCreate(

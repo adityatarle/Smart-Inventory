@@ -5,18 +5,18 @@
 @section('subheading', 'Auto-refreshes every 5 seconds')
 
 @section('content')
-<div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-    <form method="GET" class="flex gap-2">
-        <select name="warehouse_id" class="input max-w-xs" onchange="this.form.submit()">
+<div class="ss-page-toolbar">
+    <form method="GET" class="w-full sm:max-w-xs">
+        <select name="warehouse_id" class="input w-full" onchange="this.form.submit()">
             @foreach($warehouses as $warehouse)
                 <option value="{{ $warehouse->id }}" @selected($warehouseId == $warehouse->id)>{{ $warehouse->name }}</option>
             @endforeach
         </select>
     </form>
-    <div class="flex items-center gap-3">
-        <span id="live-indicator" class="badge bg-teal-400/15 text-teal-300">Live · updating…</span>
+    <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+        <span id="live-indicator" class="badge w-fit bg-teal-400/15 text-teal-300">Live · updating…</span>
         @if(auth()->user()->canManageInventory())
-            <a href="{{ route('stock.adjust') }}" class="btn-primary">Adjust stock</a>
+            <a href="{{ route('stock.adjust') }}" class="btn-primary w-full justify-center sm:w-auto">Adjust stock</a>
         @endif
     </div>
 </div>

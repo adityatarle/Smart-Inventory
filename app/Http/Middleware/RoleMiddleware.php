@@ -10,10 +10,26 @@ class RoleMiddleware
 {
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
-        if (!$request->user() || !in_array($request->user()->role, $roles)) {
+        $user = $request->user();
+
+        if (! $user || ! $user->is_active) {
             abort(403, 'Unauthorized access');
         }
 
-        return $next($request);
+        $rbacRoles = collect($roles)
+            ->flatMap(fn (string $role) => match ($role) {
+                'admin' => ['admin', 'super_admin'],
+                'staff' => ['staff', 'storekeeper'],
+                'manager' => ['manager'],
+                default => [$role],
+            })
+            ->unique()
+            ->all();
+
+        if ($user->hasRole($rbacRoles) || in_array($user->role, $roles, true)) {
+            return $next($request);
+        }
+
+        abort(403, 'Unauthorized access');
     }
 }

@@ -2,81 +2,114 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Category;
-use App\Models\Customer;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
-use App\Models\Quotation;
-use App\Models\SalesInvoice;
 use App\Models\SalesOrder;
 use App\Models\StockMovement;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
     public function index()
     {
-        $user = Auth::user();
+        $totalProducts = Product::count();
+        $inventoryValue = (float) WarehouseStock::query()
+            ->join('products', 'products.id', '=', 'warehouse_stocks.product_id')
+            ->selectRaw('COALESCE(SUM(warehouse_stocks.quantity * products.cost_price), 0) as value')
+            ->value('value');
 
-        if ($user->isCustomer()) {
-            $customer = Customer::query()->where('user_id', $user->id)->first();
+        $totalOrders = SalesOrder::count() + PurchaseOrder::count();
+        $lowStock = WarehouseStock::query()
+            ->join('products', 'products.id', '=', 'warehouse_stocks.product_id')
+            ->whereColumn('warehouse_stocks.quantity', '<=', 'products.reorder_level')
+            ->count();
 
-            $orders = SalesOrder::query()
-                ->with(['warehouse', 'items'])
-                ->when($customer, fn ($q) => $q->where('customer_id', $customer->id), fn ($q) => $q->whereRaw('1=0'))
-                ->latest()
-                ->take(10)
-                ->get();
+        $categoryStock = Category::query()
+            ->leftJoin('products', 'products.category_id', '=', 'categories.id')
+            ->leftJoin('warehouse_stocks', 'warehouse_stocks.product_id', '=', 'products.id')
+            ->groupBy('categories.id', 'categories.name')
+            ->orderBy('categories.name')
+            ->get([
+                'categories.name',
+                DB::raw('COALESCE(SUM(warehouse_stocks.quantity), 0) as qty'),
+            ]);
 
-            $quotations = Quotation::query()
-                ->when($customer, fn ($q) => $q->where('customer_id', $customer->id), fn ($q) => $q->whereRaw('1=0'))
-                ->latest()
-                ->take(5)
-                ->get();
+        $warehouseStock = Warehouse::query()
+            ->leftJoin('warehouse_stocks', 'warehouse_stocks.warehouse_id', '=', 'warehouses.id')
+            ->groupBy('warehouses.id', 'warehouses.name')
+            ->orderBy('warehouses.name')
+            ->get([
+                'warehouses.name',
+                DB::raw('COALESCE(SUM(warehouse_stocks.quantity), 0) as qty'),
+            ]);
 
-            $invoices = SalesInvoice::query()
-                ->when($customer, fn ($q) => $q->where('customer_id', $customer->id), fn ($q) => $q->whereRaw('1=0'))
-                ->latest()
-                ->take(5)
-                ->get();
+        $monthlySales = SalesOrder::query()
+            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as total")
+            ->where('created_at', '>=', now()->subMonths(5)->startOfMonth())
+            ->groupBy('ym')
+            ->orderBy('ym')
+            ->pluck('total', 'ym');
 
-            return view('dashboard.customer', compact('orders', 'quotations', 'invoices', 'customer'));
-        }
+        $monthlyPurchases = PurchaseOrder::query()
+            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as total")
+            ->where('created_at', '>=', now()->subMonths(5)->startOfMonth())
+            ->groupBy('ym')
+            ->orderBy('ym')
+            ->pluck('total', 'ym');
 
-        $stats = [
-            'warehouses' => Warehouse::count(),
-            'products' => Product::count(),
-            'categories' => Category::count(),
-            'purchase_orders' => PurchaseOrder::count(),
-            'sales_orders' => SalesOrder::count(),
-            'low_stock' => WarehouseStock::query()
-                ->join('products', 'products.id', '=', 'warehouse_stocks.product_id')
-                ->whereColumn('warehouse_stocks.quantity', '<=', 'products.reorder_level')
-                ->count(),
+        $months = collect(range(5, 0))->map(fn ($i) => now()->subMonths($i)->format('Y-m'));
+
+        $stockInOut = StockMovement::query()
+            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym,
+                SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END) as stock_in,
+                SUM(CASE WHEN quantity < 0 THEN ABS(quantity) ELSE 0 END) as stock_out")
+            ->where('created_at', '>=', now()->subMonths(5)->startOfMonth())
+            ->groupBy('ym')
+            ->orderBy('ym')
+            ->get()
+            ->keyBy('ym');
+
+        $recentOrders = SalesOrder::with(['customer', 'warehouse'])->latest()->take(6)->get();
+        $lowStockItems = WarehouseStock::with(['product', 'warehouse'])
+            ->join('products', 'products.id', '=', 'warehouse_stocks.product_id')
+            ->whereColumn('warehouse_stocks.quantity', '<=', 'products.reorder_level')
+            ->select('warehouse_stocks.*')
+            ->latest('warehouse_stocks.updated_at')
+            ->take(6)
+            ->get();
+        $recentActivities = ActivityLog::with('user')->latest()->take(8)->get();
+
+        $orderStatus = [
+            'confirmed' => SalesOrder::where('status', 'confirmed')->count(),
+            'fulfilled' => SalesOrder::where('status', 'fulfilled')->count(),
+            'cancelled' => SalesOrder::where('status', 'cancelled')->count(),
+            'draft' => SalesOrder::where('status', 'draft')->count(),
         ];
 
-        $recentMovements = StockMovement::query()
-            ->with(['product', 'warehouse', 'user'])
-            ->latest()
-            ->take(8)
-            ->get();
-
-        $pendingPurchases = PurchaseOrder::query()
-            ->with('warehouse')
-            ->whereIn('status', ['draft', 'ordered'])
-            ->latest()
-            ->take(5)
-            ->get();
-
-        $pendingSales = SalesOrder::query()
-            ->with('warehouse')
-            ->whereIn('status', ['draft', 'confirmed'])
-            ->latest()
-            ->take(5)
-            ->get();
-
-        return view('dashboard.index', compact('stats', 'recentMovements', 'pendingPurchases', 'pendingSales'));
+        return view('dashboard.index', [
+            'kpis' => [
+                'products' => $totalProducts,
+                'inventory_value' => $inventoryValue,
+                'orders' => $totalOrders,
+                'low_stock' => $lowStock,
+            ],
+            'categoryStock' => $categoryStock,
+            'warehouseStock' => $warehouseStock,
+            'months' => $months,
+            'monthlySales' => $months->map(fn ($m) => (int) ($monthlySales[$m] ?? 0)),
+            'monthlyPurchases' => $months->map(fn ($m) => (int) ($monthlyPurchases[$m] ?? 0)),
+            'stockIn' => $months->map(fn ($m) => (int) ($stockInOut[$m]->stock_in ?? 0)),
+            'stockOut' => $months->map(fn ($m) => (int) ($stockInOut[$m]->stock_out ?? 0)),
+            'recentOrders' => $recentOrders,
+            'lowStockItems' => $lowStockItems,
+            'recentActivities' => $recentActivities,
+            'orderStatus' => $orderStatus,
+            'totalWarehouses' => Warehouse::count(),
+            'totalUnits' => (int) WarehouseStock::sum('quantity'),
+        ]);
     }
 }

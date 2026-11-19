@@ -1,10 +1,10 @@
-<form method="POST" action="{{ $action }}" class="card max-w-3xl space-y-4 p-6">
+<form method="POST" action="{{ $action }}" class="card w-full max-w-4xl space-y-5 p-4 sm:p-6">
     @csrf
     @if(!empty($method)) @method($method) @endif
 
     <div class="grid gap-4 sm:grid-cols-2">
         <div>
-            <label class="label">Name</label>
+            <label class="label">Customer name <span class="text-ss-danger">*</span></label>
             <input name="name" class="input" value="{{ old('name', $customer->name ?? '') }}" required>
         </div>
         <div>
@@ -18,6 +18,30 @@
         <div>
             <label class="label">Phone</label>
             <input name="phone" class="input" value="{{ old('phone', $customer->phone ?? '') }}">
+        </div>
+        <div>
+            <label class="label">GST number</label>
+            <input name="gst_number" class="input" value="{{ old('gst_number', $customer->gst_number ?? '') }}">
+        </div>
+        <div>
+            <label class="label">Payment terms</label>
+            <input name="payment_terms" class="input" value="{{ old('payment_terms', $customer->payment_terms ?? '') }}" placeholder="e.g. Net 15">
+        </div>
+        <div>
+            <label class="label">City</label>
+            <input name="city" class="input" value="{{ old('city', $customer->city ?? '') }}">
+        </div>
+        <div>
+            <label class="label">State</label>
+            <input name="state" class="input" value="{{ old('state', $customer->state ?? '') }}">
+        </div>
+        <div>
+            <label class="label">Pincode</label>
+            <input name="pincode" class="input" value="{{ old('pincode', $customer->pincode ?? '') }}">
+        </div>
+        <div>
+            <label class="label">Credit limit</label>
+            <input type="number" step="0.01" min="0" name="credit_limit" class="input" value="{{ old('credit_limit', $customer->credit_limit ?? 0) }}">
         </div>
         <div>
             <label class="label">Sales person</label>
@@ -37,7 +61,7 @@
                 @endforeach
             </select>
         </div>
-        <div>
+        <div class="sm:col-span-2">
             <label class="label">Linked login user</label>
             <select name="user_id" class="input">
                 <option value="">—</option>
@@ -46,11 +70,8 @@
                 @endforeach
             </select>
         </div>
-        <div>
-            <label class="label">Credit limit</label>
-            <input type="number" step="0.01" min="0" name="credit_limit" class="input" value="{{ old('credit_limit', $customer->credit_limit ?? 0) }}">
-        </div>
     </div>
+
     <div>
         <label class="label">Billing address</label>
         <textarea name="billing_address" rows="2" class="input">{{ old('billing_address', $customer->billing_address ?? '') }}</textarea>
@@ -63,12 +84,14 @@
         <label class="label">Notes</label>
         <textarea name="notes" rows="2" class="input">{{ old('notes', $customer->notes ?? '') }}</textarea>
     </div>
-    <label class="flex items-center gap-2 text-sm text-muted">
-        <input type="checkbox" name="is_active" value="1" class="rounded border-line bg-slate-900 text-teal-400" @checked(old('is_active', $customer->is_active ?? true))>
+
+    <label class="flex items-center gap-2 text-sm text-ss-muted">
+        <input type="checkbox" name="is_active" value="1" class="rounded border-white/20 bg-[#12111F] text-ss-primary" @checked(old('is_active', $customer->is_active ?? true))>
         Active customer
     </label>
-    <div class="flex gap-3">
-        <button class="btn-primary">Save</button>
-        <a href="{{ route('customers.index') }}" class="btn-secondary">Cancel</a>
+
+    <div class="flex flex-col gap-3 sm:flex-row">
+        <button class="btn-primary w-full justify-center sm:w-auto">Save customer</button>
+        <a href="{{ isset($customer) && $customer?->id ? route('customers.show', $customer) : route('customers.index') }}" class="btn-secondary w-full justify-center sm:w-auto">Cancel</a>
     </div>
 </form>
