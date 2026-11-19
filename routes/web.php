@@ -7,7 +7,10 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ModulePlaceholderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\GoodsReceiptController;
+use App\Http\Controllers\PurchaseDashboardController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\PurchaseReportController;
 use App\Http\Controllers\Sales\BlanketOrderController;
 use App\Http\Controllers\Sales\CustomerController;
 use App\Http\Controllers\Sales\QuotationController;
@@ -226,16 +229,40 @@ Route::middleware('auth')->group(function () {
     Route::put('/categories/{category}', [CategoryController::class, 'update'])->name('categories.update');
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])->name('categories.destroy');
 
+    Route::get('/purchase', [PurchaseDashboardController::class, 'index'])->name('purchase.dashboard');
+    Route::get('/purchase/reports', [PurchaseReportController::class, 'index'])->name('purchase.reports');
+    Route::get('/purchase/reports/register', [PurchaseReportController::class, 'register'])->name('purchase.reports.register');
+    Route::get('/purchase/reports/pending', [PurchaseReportController::class, 'pending'])->name('purchase.reports.pending');
+    Route::get('/purchase/reports/grn', [PurchaseReportController::class, 'grnRegister'])->name('purchase.reports.grn');
+    Route::get('/purchase/reports/supplier-wise', [PurchaseReportController::class, 'supplierWise'])->name('purchase.reports.supplier');
+    Route::get('/purchase/reports/product-wise', [PurchaseReportController::class, 'productWise'])->name('purchase.reports.product');
+    Route::get('/purchase/reports/summary', [PurchaseReportController::class, 'summary'])->name('purchase.reports.summary');
+
+    Route::get('/purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
+    Route::get('/purchase-orders/create', [PurchaseOrderController::class, 'create'])->name('purchase-orders.create');
+    Route::post('/purchase-orders', [PurchaseOrderController::class, 'store'])->name('purchase-orders.store');
+    Route::get('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('purchase-orders.show');
+    Route::get('/purchase-orders/{purchaseOrder}/edit', [PurchaseOrderController::class, 'edit'])->name('purchase-orders.edit');
+    Route::put('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->name('purchase-orders.update');
+    Route::post('/purchase-orders/{purchaseOrder}/submit', [PurchaseOrderController::class, 'submit'])->name('purchase-orders.submit');
+    Route::post('/purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('purchase-orders.approve');
+    Route::post('/purchase-orders/{purchaseOrder}/reject', [PurchaseOrderController::class, 'reject'])->name('purchase-orders.reject');
+    Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
+    Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
+    Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
+    Route::delete('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('purchase-orders.destroy');
+
+    Route::get('/goods-receipts', [GoodsReceiptController::class, 'index'])->name('goods-receipts.index');
+    Route::get('/goods-receipts/create', [GoodsReceiptController::class, 'create'])->name('goods-receipts.create');
+    Route::post('/goods-receipts', [GoodsReceiptController::class, 'store'])->name('goods-receipts.store');
+    Route::get('/goods-receipts/{goodsReceipt}', [GoodsReceiptController::class, 'show'])->name('goods-receipts.show');
+    Route::post('/goods-receipts/{goodsReceipt}/submit', [GoodsReceiptController::class, 'submit'])->name('goods-receipts.submit');
+    Route::post('/goods-receipts/{goodsReceipt}/cancel', [GoodsReceiptController::class, 'cancel'])->name('goods-receipts.cancel');
+    Route::delete('/goods-receipts/{goodsReceipt}', [GoodsReceiptController::class, 'destroy'])->name('goods-receipts.destroy');
+
     Route::middleware('role:admin,manager')->group(function () {
         Route::get('/stock/adjust', fn () => redirect()->route('stock-adjustments.create'))->name('stock.adjust');
         Route::post('/stock/adjust', fn () => redirect()->route('stock-adjustments.create'))->name('stock.adjust.store');
-
-        Route::get('/purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
-        Route::get('/purchase-orders/create', [PurchaseOrderController::class, 'create'])->name('purchase-orders.create');
-        Route::post('/purchase-orders', [PurchaseOrderController::class, 'store'])->name('purchase-orders.store');
-        Route::get('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('purchase-orders.show');
-        Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
-        Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
     });
 
     Route::middleware('role:admin')->group(function () {

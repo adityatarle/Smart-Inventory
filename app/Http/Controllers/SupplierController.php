@@ -56,11 +56,31 @@ class SupplierController extends Controller
     {
         abort_unless($this->canView(), 403);
 
-        $purchaseOrders = $supplier->matchingPurchaseOrders()->paginate(10);
+        $purchaseOrders = $supplier->purchaseHistoryQuery()
+            ->with(['warehouse'])
+            ->paginate(10);
+
+        $stats = [
+            'total_orders' => $supplier->purchaseOrders()->count(),
+            'total_ordered_value' => (float) $supplier->purchaseOrders()->sum('total'),
+            'total_received_value' => (float) \App\Models\PurchaseOrderItem::query()
+                ->whereHas('purchaseOrder', fn ($q) => $q->where('supplier_id', $supplier->id))
+                ->selectRaw('COALESCE(SUM(CASE WHEN quantity > 0 THEN (line_total / quantity) * received_quantity ELSE 0 END), 0) as value')
+                ->value('value'),
+            'pending_purchase_value' => (float) $supplier->purchaseOrders()
+                ->whereIn('status', [
+                    \App\Models\PurchaseOrder::STATUS_PENDING_APPROVAL,
+                    \App\Models\PurchaseOrder::STATUS_APPROVED,
+                    \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED,
+                ])
+                ->sum('total'),
+            'last_purchase_at' => $supplier->purchaseOrders()->latest('ordered_at')->value('ordered_at'),
+        ];
 
         return view('suppliers.show', [
             'supplier' => $supplier,
             'purchaseOrders' => $purchaseOrders,
+            'purchaseStats' => $stats,
             'blockers' => $this->suppliers->deletionBlockers($supplier),
         ]);
     }

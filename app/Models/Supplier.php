@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Supplier extends Model
 {
@@ -29,6 +30,11 @@ class Supplier extends Model
         return [
             'is_active' => 'boolean',
         ];
+    }
+
+    public function purchaseOrders(): HasMany
+    {
+        return $this->hasMany(PurchaseOrder::class);
     }
 
     public function scopeSearch(Builder $query, ?string $term): Builder
@@ -59,14 +65,29 @@ class Supplier extends Model
         return $query;
     }
 
-    public function matchingPurchaseOrders()
+    /**
+     * Purchase history: prefer FK links, include unmatched legacy name matches.
+     */
+    public function purchaseHistoryQuery()
     {
         return PurchaseOrder::query()
             ->where(function ($q) {
-                $q->where('supplier_name', $this->name)
-                    ->orWhere('supplier_name', $this->company_name)
-                    ->orWhere('supplier_name', $this->code);
+                $q->where('supplier_id', $this->id)
+                    ->orWhere(function ($legacy) {
+                        $legacy->whereNull('supplier_id')
+                            ->where(function ($names) {
+                                $names->where('supplier_name', $this->name)
+                                    ->orWhere('supplier_name', $this->company_name)
+                                    ->orWhere('supplier_name', $this->code);
+                            });
+                    });
             })
             ->latest();
+    }
+
+    /** @deprecated Use purchaseHistoryQuery() / purchaseOrders() */
+    public function matchingPurchaseOrders()
+    {
+        return $this->purchaseHistoryQuery();
     }
 }

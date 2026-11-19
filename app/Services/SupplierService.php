@@ -59,8 +59,17 @@ class SupplierService
     {
         $blockers = [];
 
-        // Phase 2: POs still use supplier_name text. Match by name/company for soft dependency.
-        $poCount = PurchaseOrder::query()
+        $linkedCount = PurchaseOrder::query()
+            ->where('supplier_id', $supplier->id)
+            ->count();
+
+        if ($linkedCount > 0) {
+            $blockers[] = "It is referenced by {$linkedCount} purchase order(s).";
+        }
+
+        // Legacy rows without supplier_id still matched by name/company/code.
+        $legacyCount = PurchaseOrder::query()
+            ->whereNull('supplier_id')
             ->where(function ($q) use ($supplier) {
                 $q->where('supplier_name', $supplier->name)
                     ->orWhere('supplier_name', $supplier->company_name)
@@ -68,11 +77,19 @@ class SupplierService
             })
             ->count();
 
-        if ($poCount > 0) {
-            $blockers[] = "It matches {$poCount} purchase order supplier name(s).";
+        if ($legacyCount > 0) {
+            $blockers[] = "It matches {$legacyCount} legacy purchase order supplier name(s).";
         }
 
         return $blockers;
+    }
+
+    /**
+     * Snapshot display name used when creating/updating POs.
+     */
+    public function displayName(Supplier $supplier): string
+    {
+        return $supplier->name ?: ($supplier->company_name ?: $supplier->code);
     }
 
     public function suggestCode(): string

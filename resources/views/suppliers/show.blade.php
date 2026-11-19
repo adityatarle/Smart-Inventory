@@ -38,35 +38,66 @@
         <p class="text-sm text-ss-muted">{{ $supplier->notes ?: '' }}</p>
     </div>
 
-    <div class="ss-card overflow-hidden lg:col-span-2">
-        <div class="border-b border-white/10 px-5 py-4 font-semibold">Purchase history</div>
-        <div class="table-wrap border-0">
-            <table class="data">
-                <thead>
-                    <tr>
-                        <th>Order #</th>
-                        <th>Status</th>
-                        <th>Total</th>
-                        <th>Date</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($purchaseOrders as $order)
-                        <tr>
-                            <td class="font-mono text-xs">{{ $order->order_number }}</td>
-                            <td class="capitalize">{{ $order->status }}</td>
-                            <td>${{ number_format($order->total, 2) }}</td>
-                            <td>{{ $order->created_at?->format('Y-m-d') }}</td>
-                            <td class="text-right"><a href="{{ route('purchase-orders.show', $order) }}" class="text-sky-300">View</a></td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="5" class="py-6 text-center text-ss-muted">No matching purchase orders yet. PO supplier FK arrives in Phase 4.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
+    <div class="space-y-6 lg:col-span-2">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div class="ss-card p-4">
+                <p class="text-xs text-ss-muted">Linked POs</p>
+                <p class="mt-1 text-xl font-semibold">{{ number_format($purchaseStats['total_orders'] ?? 0) }}</p>
+            </div>
+            <div class="ss-card p-4">
+                <p class="text-xs text-ss-muted">Ordered value</p>
+                <p class="mt-1 text-xl font-semibold">${{ number_format($purchaseStats['total_ordered_value'] ?? 0, 2) }}</p>
+            </div>
+            <div class="ss-card p-4">
+                <p class="text-xs text-ss-muted">Received value</p>
+                <p class="mt-1 text-xl font-semibold">${{ number_format($purchaseStats['total_received_value'] ?? 0, 2) }}</p>
+            </div>
+            <div class="ss-card p-4">
+                <p class="text-xs text-ss-muted">Pending PO value</p>
+                <p class="mt-1 text-xl font-semibold">${{ number_format($purchaseStats['pending_purchase_value'] ?? 0, 2) }}</p>
+            </div>
+            <div class="ss-card p-4">
+                <p class="text-xs text-ss-muted">Last purchase</p>
+                <p class="mt-1 text-xl font-semibold">{{ $purchaseStats['last_purchase_at'] ? \Illuminate\Support\Carbon::parse($purchaseStats['last_purchase_at'])->format('Y-m-d') : '—' }}</p>
+            </div>
         </div>
-        <div class="px-5 py-3">{{ $purchaseOrders->links() }}</div>
+
+        <div class="ss-card overflow-hidden">
+            <div class="border-b border-white/10 px-5 py-4 font-semibold">Purchase history</div>
+            <div class="table-wrap border-0">
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>Order #</th>
+                            <th>Warehouse</th>
+                            <th>Status</th>
+                            <th>Total</th>
+                            <th>Date</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($purchaseOrders as $order)
+                            <tr>
+                                <td class="font-mono text-xs">{{ $order->order_number }}</td>
+                                <td>{{ $order->warehouse?->name ?: '—' }}</td>
+                                <td class="capitalize">{{ $order->status }}</td>
+                                <td>${{ number_format($order->total, 2) }}</td>
+                                <td>{{ optional($order->ordered_at ?? $order->created_at)->format('Y-m-d') }}</td>
+                                <td class="text-right"><a href="{{ route('purchase-orders.show', $order) }}" class="text-sky-300">View</a></td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="py-6 text-center text-ss-muted">No purchase orders linked to this supplier yet.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-5 py-3">{{ $purchaseOrders->links() }}</div>
+        </div>
+
+        <div class="ss-card p-4 text-sm text-ss-muted">
+            Outstanding payable summary will appear when the payments module is available. No estimated figures are shown.
+        </div>
     </div>
 </div>
 @endsection
