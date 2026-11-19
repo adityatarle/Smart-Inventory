@@ -6,12 +6,13 @@
 
 @section('content')
 {{-- KPI cards --}}
-<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
     @foreach([
         ['Total Products', number_format($kpis['products']), 'package', 'text-ss-primary', 'bg-ss-primary/15'],
         ['Inventory Value', '$'.number_format($kpis['inventory_value'], 2), 'wallet', 'text-ss-secondary', 'bg-ss-secondary/15'],
         ['Total Orders', number_format($kpis['orders']), 'shopping-bag', 'text-sky-300', 'bg-sky-400/15'],
         ['Low Stock Products', number_format($kpis['low_stock']), 'triangle-alert', 'text-ss-warning', 'bg-ss-warning/15'],
+        ['Open Stock Alerts', number_format($kpis['open_alerts'] ?? 0), 'bell-ring', 'text-ss-danger', 'bg-ss-danger/15'],
     ] as [$label, $value, $icon, $text, $bg])
         <div class="ss-card p-5">
             <div class="flex items-start justify-between">

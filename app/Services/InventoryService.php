@@ -139,6 +139,9 @@ class InventoryService
                 ]
             );
 
+            // Keep stock alerts in sync without queues/Redis.
+            app(StockAlertService::class)->syncForStock($warehouseId, $productId);
+
             return $movement->fresh(['product', 'warehouse', 'user']);
         });
     }
@@ -194,6 +197,97 @@ class InventoryService
             -$quantity,
             'out',
             null,
+            $reference,
+            $userId,
+            $notes,
+            $documentNumber,
+            $transactionDate
+        );
+    }
+
+    public function transferOut(
+        int $warehouseId,
+        int $productId,
+        int $quantity,
+        ?Model $reference = null,
+        ?int $userId = null,
+        ?string $notes = null,
+        ?string $documentNumber = null,
+        ?\DateTimeInterface $transactionDate = null,
+    ): StockMovement {
+        if ($quantity <= 0) {
+            throw new InvalidArgumentException('Transfer-out quantity must be positive.');
+        }
+
+        $this->ensureAvailable($warehouseId, $productId, $quantity);
+
+        return $this->post(
+            $warehouseId,
+            $productId,
+            -$quantity,
+            'transfer_out',
+            null,
+            $reference,
+            $userId,
+            $notes,
+            $documentNumber,
+            $transactionDate
+        );
+    }
+
+    public function transferIn(
+        int $warehouseId,
+        int $productId,
+        int $quantity,
+        ?float $unitCost = null,
+        ?Model $reference = null,
+        ?int $userId = null,
+        ?string $notes = null,
+        ?string $documentNumber = null,
+        ?\DateTimeInterface $transactionDate = null,
+    ): StockMovement {
+        if ($quantity <= 0) {
+            throw new InvalidArgumentException('Transfer-in quantity must be positive.');
+        }
+
+        return $this->post(
+            $warehouseId,
+            $productId,
+            $quantity,
+            'transfer_in',
+            $unitCost,
+            $reference,
+            $userId,
+            $notes,
+            $documentNumber,
+            $transactionDate
+        );
+    }
+
+    /**
+     * Post a physical-count adjustment. Positive change increases stock; negative decreases.
+     */
+    public function adjust(
+        int $warehouseId,
+        int $productId,
+        int $quantityChange,
+        ?float $unitCost = null,
+        ?Model $reference = null,
+        ?int $userId = null,
+        ?string $notes = null,
+        ?string $documentNumber = null,
+        ?\DateTimeInterface $transactionDate = null,
+    ): StockMovement {
+        if ($quantityChange === 0) {
+            throw new InvalidArgumentException('Adjustment quantity change cannot be zero.');
+        }
+
+        return $this->post(
+            $warehouseId,
+            $productId,
+            $quantityChange,
+            'adjust',
+            $unitCost,
             $reference,
             $userId,
             $notes,

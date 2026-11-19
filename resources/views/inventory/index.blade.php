@@ -54,6 +54,8 @@
     <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
         <a href="{{ route('stock-receipts.create') }}" class="btn-primary w-full justify-center sm:w-auto">Stock In</a>
         <a href="{{ route('stock-issues.create') }}" class="btn-secondary w-full justify-center sm:w-auto">Stock Out</a>
+        <a href="{{ route('stock-adjustments.create') }}" class="btn-secondary w-full justify-center sm:w-auto">Adjust</a>
+        <a href="{{ route('stock-transfers.create') }}" class="btn-secondary w-full justify-center sm:w-auto">Transfer</a>
         <a href="{{ route('stock-movements.index') }}" class="btn-secondary w-full justify-center sm:w-auto">Ledger</a>
     </div>
 </div>

@@ -16,9 +16,14 @@ use App\Http\Controllers\Sales\SalesInvoiceController;
 use App\Http\Controllers\Sales\SalesPartnerController;
 use App\Http\Controllers\Sales\SalesPersonController;
 use App\Http\Controllers\SalesOrderController;
+use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\StockAlertController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockIssueController;
 use App\Http\Controllers\StockReceiptController;
+use App\Http\Controllers\StockReportController;
+use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\StockValuationController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
@@ -77,13 +82,41 @@ Route::middleware('auth')->group(function () {
     Route::post('/stock-issues/{stockIssue}/cancel', [StockIssueController::class, 'cancel'])->name('stock-issues.cancel');
     Route::delete('/stock-issues/{stockIssue}', [StockIssueController::class, 'destroy'])->name('stock-issues.destroy');
 
+    Route::get('/stock-adjustments/system-quantity', [StockAdjustmentController::class, 'systemQuantity'])->name('stock-adjustments.system-quantity');
+    Route::get('/stock-adjustments', [StockAdjustmentController::class, 'index'])->name('stock-adjustments.index');
+    Route::get('/stock-adjustments/create', [StockAdjustmentController::class, 'create'])->name('stock-adjustments.create');
+    Route::post('/stock-adjustments', [StockAdjustmentController::class, 'store'])->name('stock-adjustments.store');
+    Route::get('/stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'show'])->name('stock-adjustments.show');
+    Route::get('/stock-adjustments/{stockAdjustment}/edit', [StockAdjustmentController::class, 'edit'])->name('stock-adjustments.edit');
+    Route::put('/stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'update'])->name('stock-adjustments.update');
+    Route::post('/stock-adjustments/{stockAdjustment}/submit', [StockAdjustmentController::class, 'submit'])->name('stock-adjustments.submit');
+    Route::post('/stock-adjustments/{stockAdjustment}/cancel', [StockAdjustmentController::class, 'cancel'])->name('stock-adjustments.cancel');
+    Route::delete('/stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'destroy'])->name('stock-adjustments.destroy');
+
+    Route::get('/stock-transfers/availability', [StockTransferController::class, 'availability'])->name('stock-transfers.availability');
+    Route::get('/stock-transfers', [StockTransferController::class, 'index'])->name('stock-transfers.index');
+    Route::get('/stock-transfers/create', [StockTransferController::class, 'create'])->name('stock-transfers.create');
+    Route::post('/stock-transfers', [StockTransferController::class, 'store'])->name('stock-transfers.store');
+    Route::get('/stock-transfers/{stockTransfer}', [StockTransferController::class, 'show'])->name('stock-transfers.show');
+    Route::get('/stock-transfers/{stockTransfer}/edit', [StockTransferController::class, 'edit'])->name('stock-transfers.edit');
+    Route::put('/stock-transfers/{stockTransfer}', [StockTransferController::class, 'update'])->name('stock-transfers.update');
+    Route::post('/stock-transfers/{stockTransfer}/submit', [StockTransferController::class, 'submit'])->name('stock-transfers.submit');
+    Route::get('/stock-transfers/{stockTransfer}/receive', [StockTransferController::class, 'receiveForm'])->name('stock-transfers.receive');
+    Route::post('/stock-transfers/{stockTransfer}/receive', [StockTransferController::class, 'receive'])->name('stock-transfers.receive.store');
+    Route::post('/stock-transfers/{stockTransfer}/cancel', [StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');
+    Route::delete('/stock-transfers/{stockTransfer}', [StockTransferController::class, 'destroy'])->name('stock-transfers.destroy');
+
+    Route::get('/inventory/valuation', [StockValuationController::class, 'index'])->name('inventory.valuation');
+    Route::get('/inventory/alerts', [StockAlertController::class, 'index'])->name('inventory.alerts');
+    Route::post('/inventory/alerts/scan', [StockAlertController::class, 'scan'])->name('inventory.alerts.scan');
+    Route::post('/inventory/alerts/{stockAlert}/resolve', [StockAlertController::class, 'resolve'])->name('inventory.alerts.resolve');
+    Route::get('/inventory/low-stock', [StockAlertController::class, 'lowStock'])->name('inventory.low-stock');
+
     // Phase placeholders for modules not yet built
     Route::get('/payments', [ModulePlaceholderController::class, 'show'])
         ->defaults('module', 'payments')
         ->name('payments.index');
-    Route::get('/reports', [ModulePlaceholderController::class, 'show'])
-        ->defaults('module', 'reports')
-        ->name('reports.index');
+    Route::get('/reports', [StockReportController::class, 'index'])->name('reports.index');
     Route::get('/notifications', [ModulePlaceholderController::class, 'show'])
         ->defaults('module', 'notifications')
         ->name('notifications.index');
@@ -194,8 +227,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])->name('categories.destroy');
 
     Route::middleware('role:admin,manager')->group(function () {
-        Route::get('/stock/adjust', [StockController::class, 'adjustForm'])->name('stock.adjust');
-        Route::post('/stock/adjust', [StockController::class, 'adjust'])->name('stock.adjust.store');
+        Route::get('/stock/adjust', fn () => redirect()->route('stock-adjustments.create'))->name('stock.adjust');
+        Route::post('/stock/adjust', fn () => redirect()->route('stock-adjustments.create'))->name('stock.adjust.store');
 
         Route::get('/purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
         Route::get('/purchase-orders/create', [PurchaseOrderController::class, 'create'])->name('purchase-orders.create');

@@ -18,8 +18,7 @@ class DashboardController extends Controller
     {
         $totalProducts = Product::count();
         $inventoryValue = (float) WarehouseStock::query()
-            ->join('products', 'products.id', '=', 'warehouse_stocks.product_id')
-            ->selectRaw('COALESCE(SUM(warehouse_stocks.quantity * products.cost_price), 0) as value')
+            ->selectRaw('COALESCE(SUM(quantity * average_cost), 0) as value')
             ->value('value');
 
         $totalOrders = SalesOrder::count() + PurchaseOrder::count();
@@ -27,6 +26,7 @@ class DashboardController extends Controller
             ->join('products', 'products.id', '=', 'warehouse_stocks.product_id')
             ->whereColumn('warehouse_stocks.quantity', '<=', 'products.reorder_level')
             ->count();
+        $openAlertCount = \App\Models\StockAlert::query()->open()->count();
 
         $categoryStock = Category::query()
             ->leftJoin('products', 'products.category_id', '=', 'categories.id')
@@ -47,15 +47,19 @@ class DashboardController extends Controller
                 DB::raw('COALESCE(SUM(warehouse_stocks.quantity), 0) as qty'),
             ]);
 
+        $ymExpr = DB::getDriverName() === 'sqlite'
+            ? "strftime('%Y-%m', created_at)"
+            : "DATE_FORMAT(created_at, '%Y-%m')";
+
         $monthlySales = SalesOrder::query()
-            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as total")
+            ->selectRaw("{$ymExpr} as ym, COUNT(*) as total")
             ->where('created_at', '>=', now()->subMonths(5)->startOfMonth())
             ->groupBy('ym')
             ->orderBy('ym')
             ->pluck('total', 'ym');
 
         $monthlyPurchases = PurchaseOrder::query()
-            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as total")
+            ->selectRaw("{$ymExpr} as ym, COUNT(*) as total")
             ->where('created_at', '>=', now()->subMonths(5)->startOfMonth())
             ->groupBy('ym')
             ->orderBy('ym')
@@ -64,7 +68,7 @@ class DashboardController extends Controller
         $months = collect(range(5, 0))->map(fn ($i) => now()->subMonths($i)->format('Y-m'));
 
         $stockInOut = StockMovement::query()
-            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym,
+            ->selectRaw("{$ymExpr} as ym,
                 SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END) as stock_in,
                 SUM(CASE WHEN quantity < 0 THEN ABS(quantity) ELSE 0 END) as stock_out")
             ->where('created_at', '>=', now()->subMonths(5)->startOfMonth())
@@ -96,6 +100,7 @@ class DashboardController extends Controller
                 'inventory_value' => $inventoryValue,
                 'orders' => $totalOrders,
                 'low_stock' => $lowStock,
+                'open_alerts' => $openAlertCount,
             ],
             'categoryStock' => $categoryStock,
             'warehouseStock' => $warehouseStock,
